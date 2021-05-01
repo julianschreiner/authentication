@@ -1,0 +1,40 @@
+version: "3"
+
+networks:
+  uas:
+    external: true
+
+services:
+  auth-uas:
+    image: auth
+    hostname: auth
+    container_name: auth-uas
+    command: make start
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 40021:40000
+    volumes:
+      - type: bind
+        source: .
+        target: /home/app
+      - type: bind
+        source: ./db/migrations
+        target: /home/app/migrations
+    working_dir: /home/app
+    environment:
+      DB_NAME: auth
+      DB_USER: asd
+      DB_PW:
+    networks:
+      - uas
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.auth.rule=Path(`/auth`) || PathPrefix(`/auth/`)"
+      - "traefik.http.routers.auth.priority=200"
+      - "traefik.http.routers.auth.entrypoints=websecure"
+      - "traefik.http.routers.auth.tls=true"
+      - "traefik.http.routers.auth.tls.certresolver=myresolver"
+      - "traefik.http.services.auth.loadbalancer.server.port=5050"
+    restart: always

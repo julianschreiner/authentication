@@ -1,0 +1,63 @@
+syntax = "proto3";
+
+package authentication;
+
+import "github.com/metaverse/truss/deftree/googlethirdparty/annotations.proto";
+
+service Authentication {
+  rpc SignIn(SignInRequest) returns (SignInResponse) {
+    option(google.api.http) = {
+      post: "/auth/login"
+      body: "*"
+    };
+  }
+
+  rpc SignOut(SignOutRequest) returns (SignOutResponse) {
+    option(google.api.http) = {
+      get: "/auth/logout"
+    };
+  }
+
+  rpc Refresh(RefreshRequest) returns (RefreshResponse) {
+    option(google.api.http) = {
+      get: "/auth/refresh"
+    };
+  }
+}
+
+message User {
+  uint64 id = 1;
+  string email = 2;
+  bool active = 3;
+  uint64 role = 4;
+  string country = 5;
+  string forename = 6;
+  string surname = 7;
+  string phone = 9;
+}
+
+message SignInRequest {
+  string email = 1;
+  string password = 2;
+  string captcha = 3;
+}
+
+message SignInResponse {
+  string access = 1;
+  string refresh = 2;
+}
+
+message SignOutRequest {
+  string refresh = 1;
+}
+
+message SignOutResponse {}
+
+message RefreshRequest {
+  string refresh = 1;
+}
+
+message RefreshResponse {
+  string access = 1;
+  string refresh = 2;
+}
