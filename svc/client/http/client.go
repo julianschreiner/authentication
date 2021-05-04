@@ -50,6 +50,16 @@ func New(instance string, options ...httptransport.ClientOption) (pb.Authenticat
 	}
 	_ = u
 
+	var RegisterZeroEndpoint endpoint.Endpoint
+	{
+		RegisterZeroEndpoint = httptransport.NewClient(
+			"POST",
+			copyURL(u, "/auth/register"),
+			EncodeHTTPRegisterZeroRequest,
+			DecodeHTTPRegisterResponse,
+			options...,
+		).Endpoint()
+	}
 	var SignInZeroEndpoint endpoint.Endpoint
 	{
 		SignInZeroEndpoint = httptransport.NewClient(
@@ -80,11 +90,23 @@ func New(instance string, options ...httptransport.ClientOption) (pb.Authenticat
 			options...,
 		).Endpoint()
 	}
+	var GetPermissionsZeroEndpoint endpoint.Endpoint
+	{
+		GetPermissionsZeroEndpoint = httptransport.NewClient(
+			"GET",
+			copyURL(u, "/auth/permission/"),
+			EncodeHTTPGetPermissionsZeroRequest,
+			DecodeHTTPGetPermissionsResponse,
+			options...,
+		).Endpoint()
+	}
 
 	endpoints := svc.NewEndpoints()
+	endpoints.RegisterEndpoint = RegisterZeroEndpoint
 	endpoints.SignInEndpoint = SignInZeroEndpoint
 	endpoints.SignOutEndpoint = SignOutZeroEndpoint
 	endpoints.RefreshEndpoint = RefreshZeroEndpoint
+	endpoints.GetPermissionsEndpoint = GetPermissionsZeroEndpoint
 
 	return endpoints, nil
 }
@@ -111,6 +133,33 @@ func CtxValuesToSend(keys ...string) httptransport.ClientOption {
 }
 
 // HTTP Client Decode
+
+// DecodeHTTPRegisterResponse is a transport/http.DecodeResponseFunc that decodes
+// a JSON-encoded RegisterResponse response from the HTTP response body.
+// If the response has a non-200 status code, we will interpret that as an
+// error and attempt to decode the specific error message from the response
+// body. Primarily useful in a client.
+func DecodeHTTPRegisterResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	defer r.Body.Close()
+	buf, err := ioutil.ReadAll(r.Body)
+	if err == io.EOF {
+		return nil, errors.New("response http body empty")
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot read http body")
+	}
+
+	if r.StatusCode != http.StatusOK {
+		return nil, errors.Wrapf(errorDecoder(buf), "status code: '%d'", r.StatusCode)
+	}
+
+	var resp pb.RegisterResponse
+	if err = jsonpb.UnmarshalString(string(buf), &resp); err != nil {
+		return nil, errorDecoder(buf)
+	}
+
+	return &resp, nil
+}
 
 // DecodeHTTPSignInResponse is a transport/http.DecodeResponseFunc that decodes
 // a JSON-encoded SignInResponse response from the HTTP response body.
@@ -193,7 +242,88 @@ func DecodeHTTPRefreshResponse(_ context.Context, r *http.Response) (interface{}
 	return &resp, nil
 }
 
+// DecodeHTTPGetPermissionsResponse is a transport/http.DecodeResponseFunc that decodes
+// a JSON-encoded GetPermissionsResponse response from the HTTP response body.
+// If the response has a non-200 status code, we will interpret that as an
+// error and attempt to decode the specific error message from the response
+// body. Primarily useful in a client.
+func DecodeHTTPGetPermissionsResponse(_ context.Context, r *http.Response) (interface{}, error) {
+	defer r.Body.Close()
+	buf, err := ioutil.ReadAll(r.Body)
+	if err == io.EOF {
+		return nil, errors.New("response http body empty")
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot read http body")
+	}
+
+	if r.StatusCode != http.StatusOK {
+		return nil, errors.Wrapf(errorDecoder(buf), "status code: '%d'", r.StatusCode)
+	}
+
+	var resp pb.GetPermissionsResponse
+	if err = jsonpb.UnmarshalString(string(buf), &resp); err != nil {
+		return nil, errorDecoder(buf)
+	}
+
+	return &resp, nil
+}
+
 // HTTP Client Encode
+
+// EncodeHTTPRegisterZeroRequest is a transport/http.EncodeRequestFunc
+// that encodes a register request into the various portions of
+// the http request (path, query, and body).
+func EncodeHTTPRegisterZeroRequest(_ context.Context, r *http.Request, request interface{}) error {
+	strval := ""
+	_ = strval
+	req := request.(*pb.RegisterRequest)
+	_ = req
+
+	r.Header.Set("transport", "HTTPJSON")
+	r.Header.Set("request-url", r.URL.Path)
+
+	// Set the path parameters
+	path := strings.Join([]string{
+		"",
+		"auth",
+		"register",
+	}, "/")
+	u, err := url.Parse(path)
+	if err != nil {
+		return errors.Wrapf(err, "couldn't unmarshal path %q", path)
+	}
+	r.URL.RawPath = u.RawPath
+	r.URL.Path = u.Path
+
+	// Set the query parameters
+	values := r.URL.Query()
+	var tmp []byte
+	_ = tmp
+
+	r.URL.RawQuery = values.Encode()
+	// Set the body parameters
+	var buf bytes.Buffer
+	toRet := request.(*pb.RegisterRequest)
+
+	toRet.Email = req.Email
+
+	toRet.Password = req.Password
+
+	toRet.Forename = req.Forename
+
+	toRet.Surname = req.Surname
+
+	toRet.Dob = req.Dob
+
+	encoder := json.NewEncoder(&buf)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode(toRet); err != nil {
+		return errors.Wrapf(err, "couldn't encode body as json %v", toRet)
+	}
+	r.Body = ioutil.NopCloser(&buf)
+	return nil
+}
 
 // EncodeHTTPSignInZeroRequest is a transport/http.EncodeRequestFunc
 // that encodes a signin request into the various portions of
@@ -233,8 +363,6 @@ func EncodeHTTPSignInZeroRequest(_ context.Context, r *http.Request, request int
 	toRet.Email = req.Email
 
 	toRet.Password = req.Password
-
-	toRet.Captcha = req.Captcha
 
 	encoder := json.NewEncoder(&buf)
 	encoder.SetEscapeHTML(false)
@@ -312,6 +440,41 @@ func EncodeHTTPRefreshZeroRequest(_ context.Context, r *http.Request, request in
 	_ = tmp
 
 	values.Add("refresh", fmt.Sprint(req.Refresh))
+
+	r.URL.RawQuery = values.Encode()
+	return nil
+}
+
+// EncodeHTTPGetPermissionsZeroRequest is a transport/http.EncodeRequestFunc
+// that encodes a getpermissions request into the various portions of
+// the http request (path, query, and body).
+func EncodeHTTPGetPermissionsZeroRequest(_ context.Context, r *http.Request, request interface{}) error {
+	strval := ""
+	_ = strval
+	req := request.(*pb.GetPermissionsRequest)
+	_ = req
+
+	r.Header.Set("transport", "HTTPJSON")
+	r.Header.Set("request-url", r.URL.Path)
+
+	// Set the path parameters
+	path := strings.Join([]string{
+		"",
+		"auth",
+		"permission",
+		fmt.Sprint(req.Role),
+	}, "/")
+	u, err := url.Parse(path)
+	if err != nil {
+		return errors.Wrapf(err, "couldn't unmarshal path %q", path)
+	}
+	r.URL.RawPath = u.RawPath
+	r.URL.Path = u.Path
+
+	// Set the query parameters
+	values := r.URL.Query()
+	var tmp []byte
+	_ = tmp
 
 	r.URL.RawQuery = values.Encode()
 	return nil

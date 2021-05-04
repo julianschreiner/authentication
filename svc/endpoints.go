@@ -40,9 +40,11 @@ type Endpoints struct {
 	httpResponseEncoders map[string]httptransport.EncodeResponseFunc
 	httpHandlerFuncs     map[string]func(http.ResponseWriter, *http.Request)
 
-	SignInEndpoint  endpoint.Endpoint
-	SignOutEndpoint endpoint.Endpoint
-	RefreshEndpoint endpoint.Endpoint
+	RegisterEndpoint       endpoint.Endpoint
+	SignInEndpoint         endpoint.Endpoint
+	SignOutEndpoint        endpoint.Endpoint
+	RefreshEndpoint        endpoint.Endpoint
+	GetPermissionsEndpoint endpoint.Endpoint
 }
 
 func NewEndpoints() Endpoints {
@@ -55,6 +57,14 @@ func NewEndpoints() Endpoints {
 }
 
 // Endpoints
+
+func (e Endpoints) Register(ctx context.Context, in *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+	response, err := e.RegisterEndpoint(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return response.(*pb.RegisterResponse), nil
+}
 
 func (e Endpoints) SignIn(ctx context.Context, in *pb.SignInRequest) (*pb.SignInResponse, error) {
 	response, err := e.SignInEndpoint(ctx, in)
@@ -80,7 +90,26 @@ func (e Endpoints) Refresh(ctx context.Context, in *pb.RefreshRequest) (*pb.Refr
 	return response.(*pb.RefreshResponse), nil
 }
 
+func (e Endpoints) GetPermissions(ctx context.Context, in *pb.GetPermissionsRequest) (*pb.GetPermissionsResponse, error) {
+	response, err := e.GetPermissionsEndpoint(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+	return response.(*pb.GetPermissionsResponse), nil
+}
+
 // Make Endpoints
+
+func MakeRegisterEndpoint(s pb.AuthenticationServer) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(*pb.RegisterRequest)
+		v, err := s.Register(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+}
 
 func MakeSignInEndpoint(s pb.AuthenticationServer) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -115,6 +144,17 @@ func MakeRefreshEndpoint(s pb.AuthenticationServer) endpoint.Endpoint {
 	}
 }
 
+func MakeGetPermissionsEndpoint(s pb.AuthenticationServer) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(*pb.GetPermissionsRequest)
+		v, err := s.GetPermissions(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return v, nil
+	}
+}
+
 // WrapAllExcept wraps each Endpoint field of struct Endpoints with a
 // go-kit/kit/endpoint.Middleware.
 // Use this for applying a set of middlewares to every endpoint in the service.
@@ -122,9 +162,11 @@ func MakeRefreshEndpoint(s pb.AuthenticationServer) endpoint.Endpoint {
 // WrapAllExcept(middleware, "Status", "Ping")
 func (e *Endpoints) WrapAllExcept(middleware endpoint.Middleware, excluded ...string) {
 	included := map[string]struct{}{
-		"SignIn":  {},
-		"SignOut": {},
-		"Refresh": {},
+		"Register":       {},
+		"SignIn":         {},
+		"SignOut":        {},
+		"Refresh":        {},
+		"GetPermissions": {},
 	}
 
 	for _, ex := range excluded {
@@ -135,6 +177,9 @@ func (e *Endpoints) WrapAllExcept(middleware endpoint.Middleware, excluded ...st
 	}
 
 	for inc := range included {
+		if inc == "Register" {
+			e.RegisterEndpoint = middleware(e.RegisterEndpoint)
+		}
 		if inc == "SignIn" {
 			e.SignInEndpoint = middleware(e.SignInEndpoint)
 		}
@@ -143,6 +188,9 @@ func (e *Endpoints) WrapAllExcept(middleware endpoint.Middleware, excluded ...st
 		}
 		if inc == "Refresh" {
 			e.RefreshEndpoint = middleware(e.RefreshEndpoint)
+		}
+		if inc == "GetPermissions" {
+			e.GetPermissionsEndpoint = middleware(e.GetPermissionsEndpoint)
 		}
 	}
 }
@@ -158,9 +206,11 @@ type LabeledMiddleware func(string, endpoint.Endpoint) endpoint.Endpoint
 // functionality.
 func (e *Endpoints) WrapAllLabeledExcept(middleware func(string, endpoint.Endpoint) endpoint.Endpoint, excluded ...string) {
 	included := map[string]struct{}{
-		"SignIn":  {},
-		"SignOut": {},
-		"Refresh": {},
+		"Register":       {},
+		"SignIn":         {},
+		"SignOut":        {},
+		"Refresh":        {},
+		"GetPermissions": {},
 	}
 
 	for _, ex := range excluded {
@@ -171,6 +221,9 @@ func (e *Endpoints) WrapAllLabeledExcept(middleware func(string, endpoint.Endpoi
 	}
 
 	for inc := range included {
+		if inc == "Register" {
+			e.RegisterEndpoint = middleware("Register", e.RegisterEndpoint)
+		}
 		if inc == "SignIn" {
 			e.SignInEndpoint = middleware("SignIn", e.SignInEndpoint)
 		}
@@ -179,6 +232,9 @@ func (e *Endpoints) WrapAllLabeledExcept(middleware func(string, endpoint.Endpoi
 		}
 		if inc == "Refresh" {
 			e.RefreshEndpoint = middleware("Refresh", e.RefreshEndpoint)
+		}
+		if inc == "GetPermissions" {
+			e.GetPermissionsEndpoint = middleware("GetPermissions", e.GetPermissionsEndpoint)
 		}
 	}
 }
@@ -190,9 +246,11 @@ func (e *Endpoints) WrapAllLabeledExcept(middleware func(string, endpoint.Endpoi
 // WrapAllWithHttpOptionExcept(serverOption, "Status", "Ping")
 func (e *Endpoints) WrapAllWithHttpOptionExcept(serverOption httptransport.ServerOption, excluded ...string) {
 	included := map[string]struct{}{
-		"SignIn":  {},
-		"SignOut": {},
-		"Refresh": {},
+		"Register":       {},
+		"SignIn":         {},
+		"SignOut":        {},
+		"Refresh":        {},
+		"GetPermissions": {},
 	}
 
 	for _, ex := range excluded {

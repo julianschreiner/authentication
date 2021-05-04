@@ -60,15 +60,19 @@ func NewEndpoints(service pb.AuthenticationServer) svc.Endpoints {
 
 	// Endpoint domain.
 	var (
-		signinEndpoint  = svc.MakeSignInEndpoint(service)
-		signoutEndpoint = svc.MakeSignOutEndpoint(service)
-		refreshEndpoint = svc.MakeRefreshEndpoint(service)
+		registerEndpoint       = svc.MakeRegisterEndpoint(service)
+		signinEndpoint         = svc.MakeSignInEndpoint(service)
+		signoutEndpoint        = svc.MakeSignOutEndpoint(service)
+		refreshEndpoint        = svc.MakeRefreshEndpoint(service)
+		getpermissionsEndpoint = svc.MakeGetPermissionsEndpoint(service)
 	)
 
 	endpoints := svc.NewEndpoints()
+	endpoints.RegisterEndpoint = registerEndpoint
 	endpoints.SignInEndpoint = signinEndpoint
 	endpoints.SignOutEndpoint = signoutEndpoint
 	endpoints.RefreshEndpoint = refreshEndpoint
+	endpoints.GetPermissionsEndpoint = getpermissionsEndpoint
 
 	// Wrap selected Endpoints with middlewares. See handlers/middlewares.go
 	endpoints = handlers.WrapEndpoints(endpoints)

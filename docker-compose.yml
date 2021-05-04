@@ -24,9 +24,13 @@ services:
         target: /home/app/migrations
     working_dir: /home/app
     environment:
+      JWT_PRIVATE: 6a935e6baca5757a3b77a2fe747a71b9466951e0b555448413547d656042ed9acf63526baaad8e75cf13821ecba4881ca42a4366d8f2e3a08d49fb567ea1da57
+      JWT_PUBLIC: cf63526baaad8e75cf13821ecba4881ca42a4366d8f2e3a08d49fb567ea1da57
+      JWT_REFRESH: wuVXMq19t7UssgA46yOyPnH8BpVEONcasPen4uV9BRhEHQeckP
       DB_NAME: auth
-      DB_USER: asd
-      DB_PW:
+      DB_USER: auth
+      DB_SECRET: 3GkB8VL0lJaKApDP
+      DB_HOST: db-uas
     networks:
       - uas
     labels:

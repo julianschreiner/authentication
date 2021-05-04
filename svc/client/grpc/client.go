@@ -36,6 +36,19 @@ func New(conn *grpc.ClientConn, options ...ClientOption) (pb.AuthenticationServe
 		grpctransport.ClientBefore(
 			contextValuesToGRPCMetadata(cc.headers)),
 	}
+	var registerEndpoint endpoint.Endpoint
+	{
+		registerEndpoint = grpctransport.NewClient(
+			conn,
+			"authentication.Authentication",
+			"Register",
+			EncodeGRPCRegisterRequest,
+			DecodeGRPCRegisterResponse,
+			pb.RegisterResponse{},
+			clientOptions...,
+		).Endpoint()
+	}
+
 	var signinEndpoint endpoint.Endpoint
 	{
 		signinEndpoint = grpctransport.NewClient(
@@ -75,15 +88,37 @@ func New(conn *grpc.ClientConn, options ...ClientOption) (pb.AuthenticationServe
 		).Endpoint()
 	}
 
+	var getpermissionsEndpoint endpoint.Endpoint
+	{
+		getpermissionsEndpoint = grpctransport.NewClient(
+			conn,
+			"authentication.Authentication",
+			"GetPermissions",
+			EncodeGRPCGetPermissionsRequest,
+			DecodeGRPCGetPermissionsResponse,
+			pb.GetPermissionsResponse{},
+			clientOptions...,
+		).Endpoint()
+	}
+
 	endpoints := svc.NewEndpoints()
+	endpoints.RegisterEndpoint = registerEndpoint
 	endpoints.SignInEndpoint = signinEndpoint
 	endpoints.SignOutEndpoint = signoutEndpoint
 	endpoints.RefreshEndpoint = refreshEndpoint
+	endpoints.GetPermissionsEndpoint = getpermissionsEndpoint
 
 	return endpoints, nil
 }
 
 // GRPC Client Decode
+
+// DecodeGRPCRegisterResponse is a transport/grpc.DecodeResponseFunc that converts a
+// gRPC register reply to a user-domain register response. Primarily useful in a client.
+func DecodeGRPCRegisterResponse(_ context.Context, grpcReply interface{}) (interface{}, error) {
+	reply := grpcReply.(*pb.RegisterResponse)
+	return reply, nil
+}
 
 // DecodeGRPCSignInResponse is a transport/grpc.DecodeResponseFunc that converts a
 // gRPC signin reply to a user-domain signin response. Primarily useful in a client.
@@ -106,7 +141,21 @@ func DecodeGRPCRefreshResponse(_ context.Context, grpcReply interface{}) (interf
 	return reply, nil
 }
 
+// DecodeGRPCGetPermissionsResponse is a transport/grpc.DecodeResponseFunc that converts a
+// gRPC getpermissions reply to a user-domain getpermissions response. Primarily useful in a client.
+func DecodeGRPCGetPermissionsResponse(_ context.Context, grpcReply interface{}) (interface{}, error) {
+	reply := grpcReply.(*pb.GetPermissionsResponse)
+	return reply, nil
+}
+
 // GRPC Client Encode
+
+// EncodeGRPCRegisterRequest is a transport/grpc.EncodeRequestFunc that converts a
+// user-domain register request to a gRPC register request. Primarily useful in a client.
+func EncodeGRPCRegisterRequest(_ context.Context, request interface{}) (interface{}, error) {
+	req := request.(*pb.RegisterRequest)
+	return req, nil
+}
 
 // EncodeGRPCSignInRequest is a transport/grpc.EncodeRequestFunc that converts a
 // user-domain signin request to a gRPC signin request. Primarily useful in a client.
@@ -126,6 +175,13 @@ func EncodeGRPCSignOutRequest(_ context.Context, request interface{}) (interface
 // user-domain refresh request to a gRPC refresh request. Primarily useful in a client.
 func EncodeGRPCRefreshRequest(_ context.Context, request interface{}) (interface{}, error) {
 	req := request.(*pb.RefreshRequest)
+	return req, nil
+}
+
+// EncodeGRPCGetPermissionsRequest is a transport/grpc.EncodeRequestFunc that converts a
+// user-domain getpermissions request to a gRPC getpermissions request. Primarily useful in a client.
+func EncodeGRPCGetPermissionsRequest(_ context.Context, request interface{}) (interface{}, error) {
+	req := request.(*pb.GetPermissionsRequest)
 	return req, nil
 }
 

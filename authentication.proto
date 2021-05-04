@@ -5,6 +5,13 @@ package authentication;
 import "github.com/metaverse/truss/deftree/googlethirdparty/annotations.proto";
 
 service Authentication {
+  rpc Register(RegisterRequest) returns (RegisterResponse) {
+    option(google.api.http) = {
+      post: "/auth/register"
+      body: "*"
+    };
+  }
+
   rpc SignIn(SignInRequest) returns (SignInResponse) {
     option(google.api.http) = {
       post: "/auth/login"
@@ -23,6 +30,12 @@ service Authentication {
       get: "/auth/refresh"
     };
   }
+
+  rpc GetPermissions(GetPermissionsRequest) returns (GetPermissionsResponse) {
+    option(google.api.http) = {
+      get: "/auth/permission/{role}"
+    };
+  }
 }
 
 message User {
@@ -36,10 +49,28 @@ message User {
   string phone = 9;
 }
 
+message Permission {
+  uint64 id = 1;
+  string name = 2;
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string forename = 3;
+  string surname = 4;
+  string dob = 5;
+}
+
+message RegisterResponse {
+  string access = 1;
+  string refresh = 2;
+}
+
+
 message SignInRequest {
   string email = 1;
   string password = 2;
-  string captcha = 3;
 }
 
 message SignInResponse {
@@ -60,4 +91,12 @@ message RefreshRequest {
 message RefreshResponse {
   string access = 1;
   string refresh = 2;
+}
+
+message GetPermissionsRequest {
+  uint64 role = 1;
+}
+
+message GetPermissionsResponse {
+  repeated Permission permissions = 1;
 }

@@ -29,6 +29,12 @@ func MakeGRPCServer(endpoints Endpoints, options ...grpctransport.ServerOption) 
 	return &grpcServer{
 		// authentication
 
+		register: grpctransport.NewServer(
+			endpoints.RegisterEndpoint,
+			DecodeGRPCRegisterRequest,
+			EncodeGRPCRegisterResponse,
+			serverOptions...,
+		),
 		signin: grpctransport.NewServer(
 			endpoints.SignInEndpoint,
 			DecodeGRPCSignInRequest,
@@ -47,17 +53,33 @@ func MakeGRPCServer(endpoints Endpoints, options ...grpctransport.ServerOption) 
 			EncodeGRPCRefreshResponse,
 			serverOptions...,
 		),
+		getpermissions: grpctransport.NewServer(
+			endpoints.GetPermissionsEndpoint,
+			DecodeGRPCGetPermissionsRequest,
+			EncodeGRPCGetPermissionsResponse,
+			serverOptions...,
+		),
 	}
 }
 
 // grpcServer implements the AuthenticationServer interface
 type grpcServer struct {
-	signin  grpctransport.Handler
-	signout grpctransport.Handler
-	refresh grpctransport.Handler
+	register       grpctransport.Handler
+	signin         grpctransport.Handler
+	signout        grpctransport.Handler
+	refresh        grpctransport.Handler
+	getpermissions grpctransport.Handler
 }
 
 // Methods for grpcServer to implement AuthenticationServer interface
+
+func (s *grpcServer) Register(ctx context.Context, req *pb.RegisterRequest) (*pb.RegisterResponse, error) {
+	_, rep, err := s.register.ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return rep.(*pb.RegisterResponse), nil
+}
 
 func (s *grpcServer) SignIn(ctx context.Context, req *pb.SignInRequest) (*pb.SignInResponse, error) {
 	_, rep, err := s.signin.ServeGRPC(ctx, req)
@@ -83,7 +105,22 @@ func (s *grpcServer) Refresh(ctx context.Context, req *pb.RefreshRequest) (*pb.R
 	return rep.(*pb.RefreshResponse), nil
 }
 
+func (s *grpcServer) GetPermissions(ctx context.Context, req *pb.GetPermissionsRequest) (*pb.GetPermissionsResponse, error) {
+	_, rep, err := s.getpermissions.ServeGRPC(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	return rep.(*pb.GetPermissionsResponse), nil
+}
+
 // Server Decode
+
+// DecodeGRPCRegisterRequest is a transport/grpc.DecodeRequestFunc that converts a
+// gRPC register request to a user-domain register request. Primarily useful in a server.
+func DecodeGRPCRegisterRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
+	req := grpcReq.(*pb.RegisterRequest)
+	return req, nil
+}
 
 // DecodeGRPCSignInRequest is a transport/grpc.DecodeRequestFunc that converts a
 // gRPC signin request to a user-domain signin request. Primarily useful in a server.
@@ -106,7 +143,21 @@ func DecodeGRPCRefreshRequest(_ context.Context, grpcReq interface{}) (interface
 	return req, nil
 }
 
+// DecodeGRPCGetPermissionsRequest is a transport/grpc.DecodeRequestFunc that converts a
+// gRPC getpermissions request to a user-domain getpermissions request. Primarily useful in a server.
+func DecodeGRPCGetPermissionsRequest(_ context.Context, grpcReq interface{}) (interface{}, error) {
+	req := grpcReq.(*pb.GetPermissionsRequest)
+	return req, nil
+}
+
 // Server Encode
+
+// EncodeGRPCRegisterResponse is a transport/grpc.EncodeResponseFunc that converts a
+// user-domain register response to a gRPC register reply. Primarily useful in a server.
+func EncodeGRPCRegisterResponse(_ context.Context, response interface{}) (interface{}, error) {
+	resp := response.(*pb.RegisterResponse)
+	return resp, nil
+}
 
 // EncodeGRPCSignInResponse is a transport/grpc.EncodeResponseFunc that converts a
 // user-domain signin response to a gRPC signin reply. Primarily useful in a server.
@@ -126,6 +177,13 @@ func EncodeGRPCSignOutResponse(_ context.Context, response interface{}) (interfa
 // user-domain refresh response to a gRPC refresh reply. Primarily useful in a server.
 func EncodeGRPCRefreshResponse(_ context.Context, response interface{}) (interface{}, error) {
 	resp := response.(*pb.RefreshResponse)
+	return resp, nil
+}
+
+// EncodeGRPCGetPermissionsResponse is a transport/grpc.EncodeResponseFunc that converts a
+// user-domain getpermissions response to a gRPC getpermissions reply. Primarily useful in a server.
+func EncodeGRPCGetPermissionsResponse(_ context.Context, response interface{}) (interface{}, error) {
+	resp := response.(*pb.GetPermissionsResponse)
 	return resp, nil
 }
 

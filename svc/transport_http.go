@@ -55,6 +55,17 @@ func MakeHTTPHandler(endpoints Endpoints, options ...httptransport.ServerOption)
 	serverOptions = append(serverOptions, options...)
 	m := mux.NewRouter()
 
+	if endpoints.HasHttpHandlerFunc("Register") {
+		m.Methods("POST").Path("/auth/register").HandlerFunc(endpoints.GetHttpHandlerFunc("Register"))
+	} else {
+		m.Methods("POST").Path("/auth/register").Handler(httptransport.NewServer(
+			endpoints.RegisterEndpoint,
+			endpoints.GetHttpRequestDecoder("Register", DecodeHTTPRegisterZeroRequest),
+			endpoints.GetHttpResponseEncoder("Register", EncodeHTTPGenericResponse),
+			append(serverOptions, endpoints.GetHttpServerOptions("Register")...)...,
+		))
+	}
+
 	if endpoints.HasHttpHandlerFunc("SignIn") {
 		m.Methods("POST").Path("/auth/login").HandlerFunc(endpoints.GetHttpHandlerFunc("SignIn"))
 	} else {
@@ -85,6 +96,17 @@ func MakeHTTPHandler(endpoints Endpoints, options ...httptransport.ServerOption)
 			endpoints.GetHttpRequestDecoder("Refresh", DecodeHTTPRefreshZeroRequest),
 			endpoints.GetHttpResponseEncoder("Refresh", EncodeHTTPGenericResponse),
 			append(serverOptions, endpoints.GetHttpServerOptions("Refresh")...)...,
+		))
+	}
+
+	if endpoints.HasHttpHandlerFunc("GetPermissions") {
+		m.Methods("GET").Path("/auth/permission/{role}").HandlerFunc(endpoints.GetHttpHandlerFunc("GetPermissions"))
+	} else {
+		m.Methods("GET").Path("/auth/permission/{role}").Handler(httptransport.NewServer(
+			endpoints.GetPermissionsEndpoint,
+			endpoints.GetHttpRequestDecoder("GetPermissions", DecodeHTTPGetPermissionsZeroRequest),
+			endpoints.GetHttpResponseEncoder("GetPermissions", EncodeHTTPGenericResponse),
+			append(serverOptions, endpoints.GetHttpServerOptions("GetPermissions")...)...,
 		))
 	}
 	return m
@@ -139,6 +161,42 @@ func (h httpError) Headers() http.Header {
 }
 
 // Server Decode
+
+// DecodeHTTPRegisterZeroRequest is a transport/http.DecodeRequestFunc that
+// decodes a JSON-encoded register request from the HTTP request
+// body. Primarily useful in a server.
+func DecodeHTTPRegisterZeroRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	defer r.Body.Close()
+	var req pb.RegisterRequest
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot read body of http request")
+	}
+	if len(buf) > 0 {
+		// AllowUnknownFields stops the unmarshaler from failing if the JSON contains unknown fields.
+		unmarshaller := jsonpb.Unmarshaler{
+			AllowUnknownFields: true,
+		}
+		if err = unmarshaller.Unmarshal(bytes.NewBuffer(buf), &req); err != nil {
+			const size = 8196
+			if len(buf) > size {
+				buf = buf[:size]
+			}
+			return nil, httpError{errors.Wrapf(err, "request body '%s': cannot parse non-json request body", buf),
+				http.StatusBadRequest,
+				nil,
+			}
+		}
+	}
+
+	pathParams := mux.Vars(r)
+	_ = pathParams
+
+	queryParams := r.URL.Query()
+	_ = queryParams
+
+	return &req, err
+}
 
 // DecodeHTTPSignInZeroRequest is a transport/http.DecodeRequestFunc that
 // decodes a JSON-encoded signin request from the HTTP request
@@ -256,6 +314,49 @@ func DecodeHTTPRefreshZeroRequest(_ context.Context, r *http.Request) (interface
 		RefreshRefresh := RefreshRefreshStr
 		req.Refresh = RefreshRefresh
 	}
+
+	return &req, err
+}
+
+// DecodeHTTPGetPermissionsZeroRequest is a transport/http.DecodeRequestFunc that
+// decodes a JSON-encoded getpermissions request from the HTTP request
+// body. Primarily useful in a server.
+func DecodeHTTPGetPermissionsZeroRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	defer r.Body.Close()
+	var req pb.GetPermissionsRequest
+	buf, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot read body of http request")
+	}
+	if len(buf) > 0 {
+		// AllowUnknownFields stops the unmarshaler from failing if the JSON contains unknown fields.
+		unmarshaller := jsonpb.Unmarshaler{
+			AllowUnknownFields: true,
+		}
+		if err = unmarshaller.Unmarshal(bytes.NewBuffer(buf), &req); err != nil {
+			const size = 8196
+			if len(buf) > size {
+				buf = buf[:size]
+			}
+			return nil, httpError{errors.Wrapf(err, "request body '%s': cannot parse non-json request body", buf),
+				http.StatusBadRequest,
+				nil,
+			}
+		}
+	}
+
+	pathParams := mux.Vars(r)
+	_ = pathParams
+
+	queryParams := r.URL.Query()
+	_ = queryParams
+
+	RoleGetPermissionsStr := pathParams["role"]
+	RoleGetPermissions, err := strconv.ParseUint(RoleGetPermissionsStr, 10, 64)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("Error while extracting RoleGetPermissions from path, pathParams: %v", pathParams))
+	}
+	req.Role = RoleGetPermissions
 
 	return &req, err
 }
