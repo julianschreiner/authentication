@@ -71,7 +71,7 @@ func NewJwtValidator(accessPublicHex string) (AuthJwt, error) {
 func (j *authJwt) Generate(userId interface{}, customClaims map[string]interface{}) (*Credentials, error) {
 	claims := jwt.Claims{}
 	claims.Issued = jwt.NewNumericTime(time.Now().Round(time.Second))
-	claims.Expires = jwt.NewNumericTime(time.Now().Add(20 * time.Minute).Round(time.Second))
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(5 * time.Minute).Round(time.Second))
 	claims.Set = customClaims
 	access, err := claims.EdDSASign(j.accessPrivate)
 	if err != nil {
@@ -81,7 +81,7 @@ func (j *authJwt) Generate(userId interface{}, customClaims map[string]interface
 	authId := uuid.NewV4().String()
 	claims = jwt.Claims{}
 	claims.Issued = jwt.NewNumericTime(time.Now().Round(time.Second))
-	claims.Expires = jwt.NewNumericTime(time.Now().Add(7 * 24 * time.Hour).Round(time.Second))
+	claims.Expires = jwt.NewNumericTime(time.Now().Add(5 * time.Minute).Round(time.Second))
 	claims.Set = map[string]interface{}{"user": userId, "auth": authId}
 	refresh, err := claims.HMACSign(jwt.HS512, j.refreshSecret)
 	if err != nil {
@@ -101,7 +101,7 @@ func (j *authJwt) ValidateRefresh(token string) (map[string]interface{}, error) 
 		return nil, err
 	}
 	if !claims.Valid(time.Now()) {
-		return nil, errors.New("token is expired")
+		return claims.Set, errors.New("token is expired")
 	}
 
 	return claims.Set, nil

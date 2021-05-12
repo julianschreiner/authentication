@@ -156,30 +156,43 @@ func (s *authService) signIn(u *user.User) (*security.Credentials, error) {
 }
 
 func (s *authService) SignOut(ctx context.Context, refreshToken string) error {
-	_, err := s.validateRefreshToken(ctx, refreshToken)
+	claims, err := s.authJwt.ValidateRefresh(refreshToken)
+	if err != nil {
+		// expired
+		err = errors.New("UnauthorizedClaimError")
+	}
+
+	_, err = s.validateRefreshToken(ctx, refreshToken, claims)
 	return err
 }
 
 func (s *authService) Refresh(ctx context.Context, refreshToken string) (*security.Credentials, error) {
-	auth, err := s.validateRefreshToken(ctx, refreshToken)
+	// first find out if refreshToken is expired!
+	claims, err := s.authJwt.ValidateRefresh(refreshToken)
+	cred := &security.Credentials{}
 	if err != nil {
-		return nil, err
-	}
 
-	u, err := s.userClient.GetActiveUserById(uint64(auth.UserId))
-	if err != nil {
-		return nil, err
-	}
+		// expired
+		auth, err := s.validateRefreshToken(ctx, refreshToken, claims)
+		if err != nil {
+			return nil, err
+		}
 
-	cred, err := s.signIn(u)
-	if err != nil {
-		return nil, errors.New("InternalServerError")
+		u, err := s.userClient.GetActiveUserById(uint64(auth.UserId))
+		if err != nil {
+			return nil, err
+		}
+
+		cred, err = s.signIn(u)
+		if err != nil {
+			return nil, errors.New("InternalServerError")
+		}
 	}
 
 	return cred, nil
 }
 
-func (s *authService) validateRefreshToken(ctx context.Context, token string) (*Auth, error) {
+func (s *authService) validateRefreshToken(ctx context.Context, token string, claims map[string]interface{}) (*Auth, error) {
 	rawCookies := ctx.Value("cookie")
 	if rawCookies != nil {
 		header := http.Header{}
@@ -190,11 +203,13 @@ func (s *authService) validateRefreshToken(ctx context.Context, token string) (*
 			token = c.Value
 		}
 	}
-
-	claims, err := s.authJwt.ValidateRefresh(token)
-	if err != nil {
-		return nil, errors.New("UnauthorizedClaimError")
-	}
+	/*
+		claims, err := s.authJwt.ValidateRefresh(token)
+		if err != nil {
+			// expired
+			return nil, errors.New("UnauthorizedClaimError")
+		}
+	*/
 
 	a := Auth{
 		AuthUuid: claims["auth"].(string),
